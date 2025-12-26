@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../data/providers.dart';
+import '../data/settings_provider.dart';
 import '../models/task.dart';
 import '../models/category.dart';
 import '../models/note.dart';
 import 'task_detail_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -34,6 +36,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
     final selectedCatId = ref.watch(selectedCategoryProvider);
+    final viewMode = ref.watch(viewModeProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     ref.listen(selectedCategoryProvider, (previous, next) { 
       categoriesAsync.whenData((cats) {
@@ -47,7 +51,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Mind Tunes")),
+      appBar: AppBar(
+        title: const Text("Mind Tunes"),
+        actions: [
+          IconButton(
+            icon: Icon(viewMode == ViewMode.list ? Icons.grid_view : Icons.view_list),
+            tooltip: viewMode == ViewMode.list ? "Grid View" : "List View",
+            onPressed: () => ref.read(viewModeProvider.notifier).toggle(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: "Settings",
+            onPressed: () => Navigator.push(
+              context, 
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showCreationMenu(context, ref),
         child: const Icon(Icons.add),
@@ -82,9 +103,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         child: ChoiceChip(
                           label: Text(cat.name),
                           selected: isSelected,
-                          selectedColor: Colors.deepPurple.shade100,
+                          selectedColor: colorScheme.primaryContainer,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.deepPurple : Colors.black,
+                            color: isSelected ? colorScheme.onPrimaryContainer : colorScheme.onSurface,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                           ),
                           onSelected: (bool selected) {
@@ -117,9 +138,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  //Menus 
-
   void _showCreationMenu(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent, 
@@ -132,7 +152,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _CreationButton(icon: Icons.edit, label: "Note", color: Colors.amber, onTap: () { Navigator.pop(context); _showNoteDialog(context, ref); }),
-              _CreationButton(icon: Icons.handyman, label: "Task", color: Colors.deepPurple, onTap: () { Navigator.pop(context); showAddTaskSheet(context); }),
+              _CreationButton(icon: Icons.handyman, label: "Task", color: colorScheme.primary, onTap: () { Navigator.pop(context); showAddTaskSheet(context); }),
             ],
           ),
         ).animate().slideY(begin: 1, duration: 300.ms, curve: Curves.easeOutBack);
@@ -178,9 +198,36 @@ class _CategoryListPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final itemsAsync = ref.watch(mixedListProvider(categoryId));
+    final viewMode = ref.watch(viewModeProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return itemsAsync.when(
       data: (items) {
-        if (items.isEmpty) return Center(child: Text("Empty playlist.", style: TextStyle(color: Colors.grey.shade400))).animate().fadeIn();
+        if (items.isEmpty) {
+          return Center(
+            child: Text("Empty playlist.", style: TextStyle(color: colorScheme.onSurface.withAlpha(100)))
+          ).animate().fadeIn();
+        }
+        
+        if (viewMode == ViewMode.grid) {
+          return GridView.builder(
+            padding: const EdgeInsets.only(bottom: 80),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.0,
+            ),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final item = items[i];
+              if (item is Task) return _TaskGridTile(task: item).animate().fadeIn(duration: 400.ms, delay: (30 * i).ms).scale(begin: const Offset(0.95, 0.95));
+              if (item is Note) return _NoteGridTile(note: item, onTap: () => onNoteTap(item)).animate().fadeIn(duration: 400.ms, delay: (30 * i).ms).scale(begin: const Offset(0.95, 0.95));
+              return const SizedBox();
+            },
+          );
+        }
+        
         return ListView.separated(
           padding: const EdgeInsets.only(bottom: 80),
           itemCount: items.length,
@@ -199,8 +246,6 @@ class _CategoryListPage extends ConsumerWidget {
   }
 }
 
-//Widgets
-
 class _CreationButton extends StatelessWidget {
   final IconData icon; final String label; final Color color; final VoidCallback onTap;
   const _CreationButton({required this.icon, required this.label, required this.color, required this.onTap});
@@ -217,8 +262,9 @@ class _AddCategoryChip extends StatelessWidget {
 
 class _AddCategoryDialog extends ConsumerWidget { 
   @override Widget build(BuildContext context, WidgetRef ref) { 
-    final controller = TextEditingController(); 
-    return AlertDialog(title: const Text("Create Playlist"), content: TextField(controller: controller, decoration: const InputDecoration(hintText: "Name"), autofocus: true), actions: [TextButton(child: const Text("Cancel"), onPressed: () => Navigator.pop(context)), TextButton(child: const Text("Create"), onPressed: () { if (controller.text.isNotEmpty) { ref.read(addCategoryProvider)(controller.text.trim()); } Navigator.pop(context); })]); } }
+    final controller = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
+    return AlertDialog(title: const Text("Create Playlist"), content: TextField(controller: controller, decoration: const InputDecoration(hintText: "Name"), autofocus: true), actions: [TextButton(child: const Text("Cancel"), onPressed: () => Navigator.pop(context)), TextButton(child: Text("Create", style: TextStyle(color: colorScheme.primary)), onPressed: () { if (controller.text.isNotEmpty) { ref.read(addCategoryProvider)(controller.text.trim()); } Navigator.pop(context); })]); } }
 
 class _NoteTile extends StatelessWidget {
   final Note note;
@@ -234,7 +280,7 @@ class _NoteTile extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: onTap, // Simply call the callback
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -265,12 +311,12 @@ class _TaskTile extends ConsumerWidget {
   @override 
   Widget build(BuildContext context, WidgetRef ref) {
     int total = task.milestones.length; int done = task.milestones.where((m) => m.isCompleted).length;
+    final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.deepPurple.shade50;
-    final textColor = isDark ? Colors.white : Colors.black;
+    final bgColor = colorScheme.primaryContainer.withOpacity(0.3);
+    final textColor = colorScheme.onSurface;
 
     return Card(elevation: 0, color: bgColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: InkWell(borderRadius: BorderRadius.circular(12), 
-      // LONG PRESS MENU
       onLongPress: () {
         showModalBottomSheet(context: context, builder: (_) => Container(
           padding: const EdgeInsets.all(20),
@@ -281,11 +327,11 @@ class _TaskTile extends ConsumerWidget {
         ));
       },
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(initialTask: task))), 
-      child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.deepPurple.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.play_arrow, color: Colors.deepPurple)), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(task.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)), if (total > 0) Padding(padding: const EdgeInsets.only(top: 4), child: Text("$done / $total objectives", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)))])), const Icon(Icons.chevron_right, color: Colors.grey)]))));
+      child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: colorScheme.primary.withOpacity(0.15), shape: BoxShape.circle), child: Icon(Icons.play_arrow, color: colorScheme.primary)), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(task.title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)), if (total > 0) Padding(padding: const EdgeInsets.only(top: 4), child: Text("$done / $total objectives", style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.6))))])), Icon(Icons.chevron_right, color: colorScheme.onSurface.withOpacity(0.5))]))));
   }
 
   void _showMoveDialog(BuildContext context, WidgetRef ref, Task task) {
-    final categoriesAsync = ref.read(categoriesProvider); // Read once
+    final categoriesAsync = ref.read(categoriesProvider);
     categoriesAsync.whenData((cats) {
       showDialog(context: context, builder: (_) => AlertDialog(
         title: const Text("Move to Playlist"),
@@ -305,6 +351,149 @@ class _TaskTile extends ConsumerWidget {
   }
 }
 
+class _TaskGridTile extends ConsumerWidget {
+  final Task task;
+  const _TaskGridTile({required this.task});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    int total = task.milestones.length;
+    int done = task.milestones.where((m) => m.isCompleted).length;
+    final colorScheme = Theme.of(context).colorScheme;
+    final bgColor = colorScheme.primaryContainer.withAlpha(80);
+    double progress = total > 0 ? done / total : 0;
+
+    return Card(
+      elevation: 2,
+      color: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onLongPress: () {
+          showModalBottomSheet(context: context, builder: (_) => Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(leading: const Icon(Icons.folder_open), title: const Text("Move Playlist"), onTap: () { Navigator.pop(context); _showMoveDialog(context, ref, task); }),
+              ListTile(leading: const Icon(Icons.delete, color: Colors.red), title: const Text("Delete Task", style: TextStyle(color: Colors.red)), onTap: () { Navigator.pop(context); ref.read(deleteTaskProvider)(task.id!); }),
+            ]),
+          ));
+        },
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TaskDetailScreen(initialTask: task))),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withAlpha(40),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.play_arrow, color: colorScheme.primary, size: 20),
+              ),
+              const Spacer(),
+              Text(
+                task.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (total > 0) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 4,
+                    backgroundColor: colorScheme.outline.withAlpha(50),
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "$done / $total",
+                  style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withAlpha(150)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMoveDialog(BuildContext context, WidgetRef ref, Task task) {
+    final categoriesAsync = ref.read(categoriesProvider);
+    categoriesAsync.whenData((cats) {
+      showDialog(context: context, builder: (_) => AlertDialog(
+        title: const Text("Move to Playlist"),
+        content: SizedBox(width: double.maxFinite, child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: cats.length,
+          itemBuilder: (_, i) => ListTile(
+            title: Text(cats[i].name),
+            onTap: () {
+              ref.read(moveTaskProvider)(task.id!, [cats[i].id!]);
+              Navigator.pop(context);
+            },
+          ),
+        )),
+      ));
+    });
+  }
+}
+
+class _NoteGridTile extends StatelessWidget {
+  final Note note;
+  final VoidCallback onTap;
+
+  const _NoteGridTile({required this.note, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.amber.shade100,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.sticky_note_2, color: Colors.amber.shade700, size: 20),
+              const SizedBox(height: 8),
+              if (note.title.isNotEmpty)
+                Text(
+                  note.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: Text(
+                  note.content,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Colors.brown.shade700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AddTaskSheet extends ConsumerStatefulWidget {
   const AddTaskSheet({super.key});
 
@@ -319,6 +508,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -338,7 +528,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
             autofocus: true,
           ),
           const SizedBox(height: 15),
-          const Text("Add to Playlist (Optional):", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Text("Add to Playlist (Optional):", style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.6))),
           categoriesAsync.when(
             data: (cats) => Wrap(
               spacing: 8,
@@ -347,7 +537,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 return FilterChip(
                   label: Text(cat.name),
                   selected: isSelected,
-                  selectedColor: Colors.deepPurple.shade100,
+                  selectedColor: colorScheme.primaryContainer,
                   onSelected: (bool selected) {
                     setState(() {
                       if (selected) {
@@ -367,10 +557,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-              ),
               child: const Text("Add to Queue"),
               onPressed: () {
                 if (_controller.text.isNotEmpty) {

@@ -48,14 +48,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   Widget build(BuildContext context) {
     final taskAsync = ref.watch(taskProvider(widget.initialTask.id!));
     final task = taskAsync.value ?? widget.initialTask;
+    final colorScheme = Theme.of(context).colorScheme;
 
     int total = task.milestones.length;
     int done = task.milestones.where((m) => m.isCompleted).length;
     double progress = total == 0 ? 0 : done / total;
     
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black;
+    final cardColor = colorScheme.surfaceContainerHighest;
+    final textColor = colorScheme.onSurface;
 
     bool isTimerRunning = task.timerEndTime != null && task.timerEndTime! > DateTime.now().millisecondsSinceEpoch;
     String timerText = "";
@@ -93,9 +94,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   height: 250,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.deepPurple,
+                    color: colorScheme.primary,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [BoxShadow(blurRadius: 10, color: Colors.black26)],
+                    boxShadow: [BoxShadow(blurRadius: 10, color: colorScheme.shadow.withOpacity(0.3))],
                     image: task.imagePath != null
                         ? DecorationImage(
                             image: FileImage(File(task.imagePath!)),
@@ -108,11 +109,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.music_note, size: 80, color: Colors.white70),
+                              Icon(Icons.music_note, size: 80, color: colorScheme.onPrimary.withOpacity(0.7)),
                               const SizedBox(height: 10),
                               Text(
                                 task.title,
-                                style: const TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold),
+                                style: TextStyle(fontSize: 28, color: colorScheme.onPrimary, fontWeight: FontWeight.bold),
                               ).animate().fadeIn().moveY(begin: 10, end: 0),
                             ],
                           ),
@@ -165,18 +166,18 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               children: [
                 Expanded(
                   child: ActionChip(
-                    avatar: Icon(Icons.calendar_today, size: 16, color: task.dueDate != null ? Colors.deepPurple : Colors.black54),
+                    avatar: Icon(Icons.calendar_today, size: 16, color: task.dueDate != null ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5)),
                     label: Text(
                       task.dueDate == null 
                         ? "Set Deadline" 
                         : "Edit: ${DateFormat('MMM d, h:mm a').format(DateTime.fromMillisecondsSinceEpoch(task.dueDate!))}",
                       style: TextStyle(
-                        color: task.dueDate != null ? Colors.deepPurple : Colors.black,
+                        color: task.dueDate != null ? colorScheme.primary : textColor,
                         fontWeight: task.dueDate != null ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    backgroundColor: task.dueDate != null ? Colors.deepPurple.shade50 : null,
-                    side: task.dueDate != null ? const BorderSide(color: Colors.deepPurple) : null,
+                    backgroundColor: task.dueDate != null ? colorScheme.primaryContainer : null,
+                    side: task.dueDate != null ? BorderSide(color: colorScheme.primary) : null,
                     onPressed: () => _pickDueDate(context, ref, task),
                   ),
                 ),
@@ -186,17 +187,17 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   child: ActionChip(
                     avatar: Icon(
                       isTimerRunning ? Icons.timer : Icons.timer_outlined, 
-                      color: isTimerRunning ? Colors.deepPurple : Colors.black54,
+                      color: isTimerRunning ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.5),
                     ),
                     label: Text(
                       isTimerRunning ? timerText : "Start Timer",
                       style: TextStyle(
-                        color: isTimerRunning ? Colors.deepPurple : Colors.black,
+                        color: isTimerRunning ? colorScheme.primary : textColor,
                         fontWeight: isTimerRunning ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    backgroundColor: isTimerRunning ? Colors.deepPurple.shade50 : null,
-                    side: isTimerRunning ? const BorderSide(color: Colors.deepPurple) : null,
+                    backgroundColor: isTimerRunning ? colorScheme.primaryContainer : null,
+                    side: isTimerRunning ? BorderSide(color: colorScheme.primary) : null,
                     onPressed: () => _showTimerDialog(context, ref, task),
                   ),
                 ),
@@ -209,15 +210,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
               value: progress,
               minHeight: 10,
               borderRadius: BorderRadius.circular(5),
-              backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
-              color: Colors.deepPurpleAccent,
             ),
             
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 "$done / $total Objectives Complete",
-                style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.grey : Colors.grey.shade600),
+                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface.withOpacity(0.6)),
               ),
             ),
 
@@ -231,7 +230,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 if (index == task.milestones.length) {
                    return ListTile(
                      key: const ValueKey("ADD_BTN"),
-                     leading: const Icon(Icons.add, color: Colors.deepPurple),
+                     leading: Icon(Icons.add, color: colorScheme.primary),
                      title: Text("Add Objective...", style: TextStyle(color: textColor)),
                      onTap: () => _showAddMilestoneDialog(context, ref, task.id!),
                    );
@@ -244,7 +243,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   decoration: BoxDecoration(
                     color: m.isCompleted ? Colors.amber.withOpacity(0.15) : cardColor,
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 2)]
+                    boxShadow: [BoxShadow(color: colorScheme.shadow.withOpacity(0.05), blurRadius: 2)]
                   ),
                   child: CheckboxListTile(
                     controlAffinity: ListTileControlAffinity.leading,
@@ -255,8 +254,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         decoration: m.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
-                        decorationColor: Colors.grey,
-                        color: m.isCompleted ? Colors.grey : textColor,
+                        decorationColor: colorScheme.onSurface.withOpacity(0.5),
+                        color: m.isCompleted ? colorScheme.onSurface.withOpacity(0.5) : textColor,
                       ),
                       child: Text(m.text),
                     ),
@@ -264,7 +263,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                     value: m.isCompleted,
                     onChanged: (_) => ref.read(toggleMilestoneProvider)(m.id!, m.isCompleted),
                     secondary: IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                      icon: Icon(Icons.close, size: 18, color: colorScheme.onSurface.withOpacity(0.4)),
                       onPressed: () => ref.read(deleteMilestoneProvider)(m.id!),
                     ),
                   ),
@@ -290,6 +289,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   }
 
   void _showTimerDialog(BuildContext context, WidgetRef ref, Task task) {
+    final colorScheme = Theme.of(context).colorScheme;
     double minutes = 30;
     showModalBottomSheet(
       context: context,
@@ -318,11 +318,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   else
                     Column(
                       children: [
-                        Text("${minutes.toInt()} minutes", style: const TextStyle(fontSize: 24, color: Colors.deepPurple, fontWeight: FontWeight.bold)),
-                        Slider(value: minutes, min: 5, max: 120, divisions: 23, activeColor: Colors.deepPurple, label: "${minutes.toInt()}m", onChanged: (val) { setModalState(() => minutes = val); }),
+                        Text("${minutes.toInt()} minutes", style: TextStyle(fontSize: 24, color: colorScheme.primary, fontWeight: FontWeight.bold)),
+                        Slider(value: minutes, min: 5, max: 120, divisions: 23, activeColor: colorScheme.primary, label: "${minutes.toInt()}m", onChanged: (val) { setModalState(() => minutes = val); }),
                         const SizedBox(height: 10),
                         ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
+                          style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
                           child: const Text("Start Focus Session"),
                           onPressed: () {
                             final endTime = DateTime.now().add(Duration(minutes: minutes.toInt()));
@@ -370,7 +370,6 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 _showRenameDialog(context, ref, task);
               },
             ),
-            // NEW OPTION: MOVE
             ListTile(
               leading: const Icon(Icons.folder_open),
               title: const Text("Move to Playlist"),
